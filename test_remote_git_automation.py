@@ -13,7 +13,10 @@ def valid_state():
         "repo": "agentic-issue-resolver-test",
         "issue_number": 12,
         "issue_title": "Test issue",
-        "issue_url": "https://github.com/Kirthana270405/agentic-issue-resolver-test/issues/12",
+        "issue_url": (
+            "https://github.com/Kirthana270405/"
+            "agentic-issue-resolver-test/issues/12"
+        ),
         "git_branch": "agent/issue-12",
         "git_commit": "abc123",
         "git_automation_status": "committed_locally",
@@ -32,7 +35,9 @@ def test_push_disabled_by_default():
     state = valid_state()
     state["enable_remote_git_automation"] = False
 
-    with patch("app.workflow.git_automation.RepositoryManager.push_branch") as push:
+    with patch(
+        "app.workflow.git_automation.RepositoryManager.push_branch"
+    ) as push:
         result = push_branch_node(state)
 
     assert result["git_push_status"] == "disabled"
@@ -43,7 +48,9 @@ def test_push_requires_successful_commit():
     state = valid_state()
     state["git_automation_status"] = "failed"
 
-    with patch("app.workflow.git_automation.RepositoryManager.push_branch") as push:
+    with patch(
+        "app.workflow.git_automation.RepositoryManager.push_branch"
+    ) as push:
         result = push_branch_node(state)
 
     assert result["git_push_status"] == "failed"
@@ -51,13 +58,36 @@ def test_push_requires_successful_commit():
 
 
 def test_push_success():
-    with patch(
-        "app.workflow.git_automation.RepositoryManager.push_branch",
-        return_value="agent/issue-12",
-    ) as push:
+    with (
+        patch(
+            "app.workflow.git_automation._validate_active_branch"
+        ) as validate_branch,
+        patch(
+            "app.workflow.git_automation.RepositoryManager.push_branch",
+            return_value="agent/issue-12",
+        ) as push,
+    ):
         result = push_branch_node(valid_state())
 
     assert result["git_push_status"] == "success"
+    validate_branch.assert_called_once()
+    push.assert_called_once()
+
+
+def test_push_rejects_mismatched_branch():
+    with (
+        patch(
+            "app.workflow.git_automation._validate_active_branch"
+        ),
+        patch(
+            "app.workflow.git_automation.RepositoryManager.push_branch",
+            return_value="main",
+        ) as push,
+    ):
+        result = push_branch_node(valid_state())
+
+    assert result["git_push_status"] == "failed"
+    assert "expected" in result["git_automation_error"]
     push.assert_called_once()
 
 

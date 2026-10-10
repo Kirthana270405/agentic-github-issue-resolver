@@ -40,8 +40,16 @@ class RepositoryManager:
                 "before creating a branch."
             )
 
-        if not branch_name or branch_name.startswith("-"):
+        if not isinstance(branch_name, str) or not branch_name.strip():
+            raise ValueError("Branch name cannot be empty.")
+
+        if branch_name.startswith("-"):
             raise ValueError("Invalid branch name.")
+
+        try:
+            repo.git.check_ref_format("--branch", branch_name)
+        except GitCommandError as exc:
+            raise ValueError(f"Invalid branch name: {branch_name}") from exc
 
         if branch_name in [branch.name for branch in repo.branches]:
             raise ValueError(f"Local branch already exists: {branch_name}")
@@ -55,20 +63,37 @@ class RepositoryManager:
         message: str,
         file_paths: list[str],
     ) -> str:
-        """Commit only the explicitly listed repository-relative files."""
+        """Commit only explicitly listed files, rejecting pre-staged changes."""
         repo = Repo(repo_dir)
         root = Path(repo.working_tree_dir).resolve()
 
-        if not message.strip():
+        if not isinstance(message, str) or not message.strip():
             raise ValueError("Commit message cannot be empty.")
 
         if not file_paths:
             raise ValueError("No files were specified for the commit.")
 
+        if repo.head.is_detached:
+            raise ValueError("Cannot commit from a detached HEAD.")
+
+        # Never include unrelated changes that were staged beforehand.
+        if repo.index.diff("HEAD"):
+            raise ValueError(
+                "The Git index already contains staged changes. "
+                "Unstage or commit them before running automated commits."
+            )
+
         safe_paths = []
 
         for file_path in file_paths:
-            candidate = (root / file_path).resolve()
+            if not isinstance(file_path, str) or not file_path.strip():
+                raise ValueError("Every file path must be a non-empty string.")
+
+            supplied_path = Path(file_path)
+            candidate = (
+                supplied_path if supplied_path.is_absolute()
+                else root / supplied_path
+            ).resolve()
 
             try:
                 relative_path = candidate.relative_to(root)
@@ -80,8 +105,14 @@ class RepositoryManager:
             if not candidate.is_file():
                 raise ValueError(f"File does not exist: {file_path}")
 
-            safe_paths.append(relative_path.as_posix())
+            relative_name = relative_path.as_posix()
+            if relative_name not in safe_paths:
+                safe_paths.append(relative_name)
 
+        if not safe_paths:
+            raise ValueError("No valid files were specified for the commit.")
+
+        # Stage only the validated files.
         repo.index.add(safe_paths)
 
         if not repo.index.diff("HEAD"):
@@ -97,12 +128,25 @@ class RepositoryManager:
         repo_dir: str | Path,
         remote_name: str = "origin",
     ) -> str:
+        """Push the currently checked-out branch to the configured remote."""
         repo = Repo(repo_dir)
 
         if repo.head.is_detached:
             raise ValueError("Cannot push from a detached HEAD.")
 
+        if repo.is_dirty(untracked_files=True):
+            raise ValueError(
+                "Cannot push while the working tree contains uncommitted changes."
+            )
+
         branch_name = repo.active_branch.name
+
+        if not branch_name:
+            raise ValueError("No active branch is available to push.")
+
+        if remote_name not in [remote.name for remote in repo.remotes]:
+            raise ValueError(f"Git remote not found: {remote_name}")
+
         remote = repo.remote(remote_name)
 
         remote.push(
