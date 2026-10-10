@@ -146,6 +146,7 @@ class CodeChunker:
 
 
 
+
 def retrieve_code_node(state: WorkflowState) -> dict:
     """Retrieve repository code using issue-aware lexical ranking."""
     print("\n[Node] Retrieving relevant repository code...")
@@ -161,16 +162,24 @@ def retrieve_code_node(state: WorkflowState) -> dict:
         return {"relevant_code": []}
 
     excluded_dirs = {
-        ".git", "__pycache__", ".venv", "venv",
-        "node_modules", "build", "dist", ".tox",
-        "docs", "examples",
+        ".git",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "node_modules",
+        "build",
+        "dist",
+        ".tox",
+        "docs",
+        "examples",
     }
 
     source_files = []
 
     for root, dirs, files in os.walk(repo_root):
         dirs[:] = [
-            directory for directory in dirs
+            directory
+            for directory in dirs
             if directory not in excluded_dirs
         ]
 
@@ -203,12 +212,15 @@ def retrieve_code_node(state: WorkflowState) -> dict:
         "does", "doesn", "always", "correctly",
     }
 
-    tokenize = lambda text: re.findall(
-        r"[a-zA-Z_][a-zA-Z0-9_]*", text.lower()
-    )
+    def tokenize(text: str) -> list[str]:
+        return re.findall(
+            r"[a-zA-Z_][a-zA-Z0-9_]*",
+            text.lower(),
+        )
 
     query_words = {
-        word for word in tokenize(query)
+        word
+        for word in tokenize(query)
         if len(word) >= 3 and word not in stop_words
     }
 
@@ -225,14 +237,22 @@ def retrieve_code_node(state: WorkflowState) -> dict:
 
     scored_chunks = []
 
+    issue_body = str(state.get("issue_body", "")).lower()
+
     for chunk in all_chunks:
         content = chunk["content"].lower()
-        relative_path = (
-            Path(chunk["file_path"])
-            .relative_to(repo_root)
-            .as_posix()
-            .lower()
-        )
+
+        try:
+            relative_path = (
+                Path(chunk["file_path"])
+                .resolve()
+                .relative_to(repo_root)
+                .as_posix()
+                .lower()
+            )
+        except (OSError, ValueError, RuntimeError):
+            # Never retrieve a file outside the target repository.
+            continue
 
         path_words = set(tokenize(relative_path))
         content_words = tokenize(content)
@@ -240,7 +260,7 @@ def retrieve_code_node(state: WorkflowState) -> dict:
 
         score = 0
 
-        # File names are useful clues, but must not dominate code evidence.
+        # File names provide useful clues without dominating code evidence.
         for word in query_words:
             if word in path_words:
                 score += 4
@@ -255,8 +275,7 @@ def retrieve_code_node(state: WorkflowState) -> dict:
             if word in content_word_set:
                 score += min(content_words.count(word), 5)
 
-        # Exact issue phrases provide stronger evidence than isolated words.
-        issue_body = str(state.get("issue_body", "")).lower()
+        # Exact issue phrases provide stronger evidence.
         for phrase in (
             "response body",
             "response content",
@@ -266,7 +285,7 @@ def retrieve_code_node(state: WorkflowState) -> dict:
             if phrase in issue_body and phrase in content:
                 score += 5
 
-        # Favor executable code over chunks consisting mostly of comments.
+        # Favor executable code over comment-heavy chunks.
         if "def " in content or "class " in content:
             score += 2
 
@@ -275,22 +294,45 @@ def retrieve_code_node(state: WorkflowState) -> dict:
 
     scored_chunks.sort(key=lambda item: item[0], reverse=True)
 
-    top_chunks = [chunk for _, chunk in scored_chunks[:5]]
+    top_chunks = [
+        chunk for _, chunk in scored_chunks[:5]
+    ]
 
     print(f"[Node] Scanned {len(source_files)} Python files.")
     print(f"[Node] Scored {len(scored_chunks)} relevant code chunks.")
     print(f"[Node] Retrieved {len(top_chunks)} relevant code chunks.")
 
-    for rank, chunk in enumerate(top_chunks, start=1):
-        relative_path = (
-            Path(chunk["file_path"]).relative_to(repo_root)
-        )
+    # Return repository-relative paths to the planner.
+    normalized_chunks = []
+
+    for chunk in top_chunks:
+        try:
+            relative_path = (
+                Path(chunk["file_path"])
+                .resolve()
+                .relative_to(repo_root)
+                .as_posix()
+            )
+        except (OSError, ValueError, RuntimeError):
+            continue
+
+        normalized_chunks.append({
+            **chunk,
+            "file_path": relative_path,
+        })
+
+    for rank, chunk in enumerate(normalized_chunks, start=1):
         print(
-            f"  {rank}. {relative_path} "
+            f"  {rank}. {chunk['file_path']} "
             f"(line {chunk['start_line']})"
         )
 
-    return {"relevant_code": top_chunks}
+    print(
+        f"[Node] Returning {len(normalized_chunks)} chunks "
+        "with repository-relative paths."
+    )
+
+    return {"relevant_code": normalized_chunks}
 
 
 # ============================================================

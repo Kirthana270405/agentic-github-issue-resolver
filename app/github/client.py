@@ -32,14 +32,17 @@ class GitHubClient:
         issue_number: int,
     ) -> GitHubIssue:
         """Fetch a GitHub issue by repository and issue number."""
-        url = f"{self.BASE_URL}/repos/{owner}/{repo}/issues/{issue_number}"
+        url = (
+            f"{self.BASE_URL}/repos/{owner}/{repo}"
+            f"/issues/{issue_number}"
+        )
 
         response = requests.get(
             url,
             headers=self.headers,
             timeout=10,
         )
-        response.raise_for_status()
+        self._raise_for_github_error(response)
 
         data = response.json()
 
@@ -61,7 +64,7 @@ class GitHubClient:
         head: str,
         base: str = "main",
     ) -> dict:
-        """Create a pull request from a pushed branch into the base branch."""
+        """Create a pull request from a pushed branch."""
         url = f"{self.BASE_URL}/repos/{owner}/{repo}/pulls"
 
         response = requests.post(
@@ -75,7 +78,7 @@ class GitHubClient:
             },
             timeout=15,
         )
-        response.raise_for_status()
+        self._raise_for_github_error(response)
 
         data = response.json()
 
@@ -84,3 +87,26 @@ class GitHubClient:
             "url": data["html_url"],
             "state": data["state"],
         }
+
+    @staticmethod
+    def _raise_for_github_error(response):
+        """Raise an informative error without exposing credentials."""
+        if response.ok:
+            return
+
+        try:
+            data = response.json()
+            message = data.get("message", response.text)
+            errors = data.get("errors")
+
+            details = f"GitHub API error ({response.status_code}): {message}"
+            if errors:
+                details += f"; details: {errors}"
+
+        except ValueError:
+            details = (
+                f"GitHub API error ({response.status_code}): "
+                f"{response.text[:500]}"
+            )
+
+        raise requests.HTTPError(details, response=response)
