@@ -1,0 +1,41 @@
+[
+  {
+    "owner": "psf",
+    "repo": "requests",
+    "issue_number": 1,
+    "url": "https://github.com/psf/requests/issues/1",
+    "title": "Cookie support?",
+    "body": "An feature request (not found in documentation).\n\nDoes this support cookies?\n\nUsecase: I can integrate this module inside an existings framework. This framework generate for me the authentication/session cookie, so to perform request using requests there I need to add the same auth cookie already generated.\n",
+    "state": "closed",
+    "labels": [],
+    "created_at": "2011-02-14T10:35:25Z",
+    "closed_at": "2011-02-14T18:03:29Z",
+    "fetch_status": "success"
+  },
+  {
+    "owner": "psf",
+    "repo": "requests",
+    "issue_number": 2,
+    "url": "https://github.com/psf/requests/issues/2",
+    "title": "a \"40x\" error my have content",
+    "body": "sometimes, a \"40x\" header does not mean you don't have content in your response. In fact, that's the 2nd time I'm working on a HTTP client that has to handle content, even if the HTTP return code is different than \"200\". An example : a webservice that throws a \"403\" error (forbidden) but outputs some content - in an XML structure, for example, a reason for the error : incorrect password, unauthorized operation, etc. This result is meaningful, and it helps to debug code.\n\nUsually, I have to create a workaround using urllib rather than urllib2 to catch the response body, even if a \"40x\" error is thrown.\n\nI thought \"requests\" would handle this, but I've tried to request my small test webservice, and here's the result :\n\n```\n>>> resp = requests.post('http://my-server/webservices/stuff', {'user': 'yada', 'pass': yada'})\n>>> print resp\n>>> <Response [403]> # this is correct, because user/pass is wrong\n>>> print resp.content\nNone\n```\n\nBut in my _actual_ response body, I've got XML (and I've checked).\n",
+    "state": "closed",
+    "labels": [],
+    "created_at": "2011-02-14T11:41:34Z",
+    "closed_at": "2011-02-15T00:33:13Z",
+    "fetch_status": "success"
+  },
+  {
+    "owner": "psf",
+    "repo": "requests",
+    "issue_number": 3,
+    "url": "https://github.com/psf/requests/issues/3",
+    "title": "Eventlet Support",
+    "body": "",
+    "state": "closed",
+    "labels": [],
+    "created_at": "2011-02-14T16:24:00Z",
+    "closed_at": "2011-02-15T01:10:16Z",
+    "fetch_status": "success"
+  }
+]
