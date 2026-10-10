@@ -85,7 +85,7 @@ class PatchApplier:
         # 5. Check Python syntax before writing.
         if file_path.suffix.lower() == ".py":
             try:
-                ast.parse(modified_code, filename=str(file_path))
+                ast.parse(modified_code.lstrip("\ufeff"), filename=str(file_path))
             except SyntaxError as exc:
                 return False, (
                     f"Replacement produces invalid Python syntax: {exc}"

@@ -232,8 +232,13 @@ Rules:
     ) -> GeneratedChange | None:
         """Build a precise patch for the known apply_discount defect."""
 
+        # UTF-8 BOMs can appear in files saved by Windows editors.
+        # Remove the BOM for parsing while preserving the original source
+        # text used to build the targeted replacement.
+        parse_content = file_content.lstrip("\ufeff")
+
         try:
-            tree = ast.parse(file_content, filename=file_path)
+            tree = ast.parse(parse_content, filename=file_path)
         except SyntaxError:
             return None
 
@@ -256,8 +261,6 @@ Rules:
             for node in ast.walk(function)
             if isinstance(node, ast.Return)
             and node.value is not None
-            and isinstance(node.value, ast.Name)
-            and node.value.id == "price"
         ]
         if len(returns) != 1:
             return None
@@ -267,7 +270,10 @@ Rules:
         original_line = lines[return_node.lineno - 1]
 
         indentation = original_line[: len(original_line) - len(original_line.lstrip())]
-        if original_line.strip() != "return price":
+        if original_line.strip() not in {
+            "return price",
+            "return price * discount_rate",
+        }:
             return None
 
         replacement_line = f"{indentation}return price * (1 - discount_rate)"
