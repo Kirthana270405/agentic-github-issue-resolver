@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-10-10T16:09:45.276502+00:00",
+  "evaluation_scope": "Three attempted real GitHub issues",
+  "recorded_issues": 3,
+  "workflow_executed": 3,
+  "issues_with_patch_generated": 0,
+  "issues_with_patch_applied": 0,
+  "successfully_resolved": 0,
+  "issues_where_tests_ran": 0,
+  "patch_generation_rate_percent": 0.0,
+  "patch_application_rate_percent": 0.0,
+  "resolution_rate_percent": 0.0,
+  "issue_results": [
+    {
+      "issue": 7122,
+      "status": "no_patches_applied",
+      "patches_generated": 0,
+      "patches_applied": 0,
+      "resolved": false,
+      "duration_seconds": 579.81
+    },
+    {
+      "issue": 7357,
+      "status": "insufficient_context",
+      "patches_generated": 0,
+      "patches_applied": 0,
+      "resolved": false,
+      "duration_seconds": 403.19
+    },
+    {
+      "issue": 7443,
+      "status": "planning_timeout",
+      "patches_generated": 0,
+      "patches_applied": 0,
+      "resolved": false,
+      "duration_seconds": null
+    }
+  ],
+  "limitations": [
+    "Issue 7122: no valid patch generated.",
+    "Issue 7357: insufficient context; safely stopped.",
+    "Issue 7443: planning stalled and was manually interrupted; timeout duration was not measured.",
+    "Repository tests did not run for these attempts.",
+    "Remote and local Git automation were disabled during issue evaluation."
+  ]
+}

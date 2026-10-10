@@ -13,10 +13,10 @@ from app.workflow.graph import build_graph
 GITHUB_API = "https://api.github.com"
 OWNER = "psf"
 REPO = "requests"
-ISSUE_NUMBERS = [2]
 
-# Change this to v4, v5, etc. for each fresh evaluation.
-EVALUATION_VERSION = "v4"
+# Three real GitHub issues to evaluate.
+ISSUE_NUMBERS = [7122, 7357, 7443]
+EVALUATION_VERSION = "v5"
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 WORKSPACE = PROJECT_ROOT / "workspace"
@@ -54,8 +54,7 @@ def prepare_isolated_repository(number: int) -> tuple[Path, str]:
     if repo_dir.exists():
         raise FileExistsError(
             f"Evaluation folder already exists: {repo_dir}\n"
-            f"Change EVALUATION_VERSION from '{EVALUATION_VERSION}' "
-            "to a new version before running again. "
+            f"Change EVALUATION_VERSION to a new version before rerunning. "
             "The existing folder was not modified."
         )
 
@@ -71,7 +70,7 @@ def prepare_isolated_repository(number: int) -> tuple[Path, str]:
 
 
 def evaluate_issue(number: int) -> dict:
-    """Evaluate one issue against an isolated repository clone."""
+    """Evaluate one real issue in an isolated repository clone."""
     started = time.time()
 
     record = {
@@ -83,7 +82,6 @@ def evaluate_issue(number: int) -> dict:
 
     try:
         issue = fetch_issue(OWNER, REPO, number)
-
         title = issue.get("title") or ""
         body = issue.get("body") or ""
 
@@ -97,13 +95,9 @@ def evaluate_issue(number: int) -> dict:
         print("=" * 70)
         print("Remote Git automation: DISABLED")
         print("Local Git automation: DISABLED")
-        print("Repository under evaluation: isolated clone")
 
         repo_dir, evaluation_repo_name = prepare_isolated_repository(number)
 
-        # The workflow resolves the repository as:
-        # workspace/{owner}_{repo}
-        # Therefore, owner + repo match the isolated clone directory.
         initial_state = {
             "owner": OWNER,
             "repo": evaluation_repo_name,
@@ -148,9 +142,8 @@ def evaluate_issue(number: int) -> dict:
             if item.get("applied", False)
         ]
 
-        # Do not report a test failure when the test node never ran.
         test_command = test_result.get("command", "")
-        tests_skipped = test_result.get("skipped", False)
+        tests_skipped = bool(test_result.get("skipped", False))
         tests_ran = bool(test_command) and not tests_skipped
 
         if tests_skipped:
@@ -161,6 +154,14 @@ def evaluate_issue(number: int) -> dict:
             test_status = "PASSED"
         else:
             test_status = "FAILED"
+
+        # A successful resolution requires an applied patch and passing tests.
+        resolved = (
+            result.get("final_status") == "success"
+            and bool(applied)
+            and tests_ran
+            and test_result.get("success", False)
+        )
 
         record.update({
             "workflow_executed": True,
@@ -185,7 +186,7 @@ def evaluate_issue(number: int) -> dict:
             "repository_tests": {
                 "status": test_status,
                 "success": (
-                    test_result.get("success")
+                    bool(test_result.get("success", False))
                     if tests_ran else None
                 ),
                 "skipped": tests_skipped,
@@ -195,18 +196,25 @@ def evaluate_issue(number: int) -> dict:
                 "stdout": test_result.get("stdout", ""),
                 "stderr": test_result.get("stderr", ""),
             },
+            "resolved_successfully": resolved,
             "evaluation_repository": str(repo_dir),
             "remote_git_automation": "disabled",
             "local_git_automation": "disabled",
         })
 
+        print(f"\n[Result] Final status: {record['final_status']}")
+        print(f"[Result] Patches generated: {len(patches)}")
+        print(f"[Result] Patches applied: {len(applied)}")
+        print(f"[Result] Repository tests: {test_status}")
+        print(f"[Result] Successfully resolved: {resolved}")
+
     except KeyboardInterrupt:
-        print("\n[Evaluation] Interrupted by user.")
         record["error"] = "Interrupted by user."
         raise
 
     except Exception as exc:
         record["error"] = f"{type(exc).__name__}: {exc}"
+        record["resolved_successfully"] = False
         print(f"\n[Evaluation Error] {record['error']}")
 
     finally:
@@ -215,52 +223,92 @@ def evaluate_issue(number: int) -> dict:
     return record
 
 
+def save_results(results: list[dict]) -> None:
+    """Persist all completed results after each issue."""
+    REPORT_PATH.write_text(
+        json.dumps(results, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def print_summary(results: list[dict]) -> None:
+    """Print actual measured metrics; do not count skipped tests as passes."""
+    attempted = len(results)
+    executed = sum(bool(r.get("workflow_executed")) for r in results)
+    resolved = sum(bool(r.get("resolved_successfully")) for r in results)
+
+    generated = sum(r.get("patches_generated", 0) for r in results)
+    validated = sum(r.get("patches_validated", 0) for r in results)
+    applied = sum(r.get("patches_applied", 0) for r in results)
+
+    tests_ran = [
+        r for r in results
+        if r.get("repository_tests", {}).get("ran", False)
+    ]
+    tests_passed = sum(
+        bool(r.get("repository_tests", {}).get("success"))
+        for r in tests_ran
+    )
+
+    def percentage(numerator: int, denominator: int) -> str:
+        if denominator == 0:
+            return "N/A"
+        return f"{numerator / denominator * 100:.1f}%"
+
+    print("\n" + "=" * 70)
+    print("DAY 6 — MULTI-ISSUE EVALUATION RESULTS")
+    print("=" * 70)
+    print(f"Issues attempted:                 {attempted}")
+    print(f"Workflows executed:               {executed}/{attempted}")
+    print(f"Issues successfully resolved:     {resolved}/{attempted}")
+    print(
+        "Issue resolution success rate:    "
+        f"{percentage(resolved, attempted)}"
+    )
+    print(f"Patches generated:                {generated}")
+    print(f"Patches validated:                {validated}")
+    print(f"Patches applied:                  {applied}")
+    print(f"Issues whose tests ran:            {len(tests_ran)}")
+    print(f"Issues whose tests passed:         {tests_passed}")
+    print(
+        "Test pass rate (among runs):       "
+        f"{percentage(tests_passed, len(tests_ran))}"
+    )
+
+    print("\nPer-issue results:")
+    for result in results:
+        tests = result.get("repository_tests", {})
+        print(
+            f"  #{result['issue_number']}: "
+            f"resolved={result.get('resolved_successfully', False)}, "
+            f"patches={result.get('patches_applied', 0)}, "
+            f"tests={tests.get('status', 'NOT RUN')}"
+        )
+        if result.get("error"):
+            print(f"      Error: {result['error']}")
+
+    print(f"\nFull JSON report: {REPORT_PATH}")
+    print(
+        "\nNote: this evaluation measures patch-and-test outcomes. "
+        "It does not verify remote push or pull-request creation."
+    )
+
+
 def main() -> None:
     results = []
 
     for number in ISSUE_NUMBERS:
         result = evaluate_issue(number)
         results.append(result)
+        save_results(results)
+        print(f"\n[Report] Saved progress to {REPORT_PATH}")
 
-        # Save after each issue so completed results are preserved.
-        REPORT_PATH.write_text(
-            json.dumps(results, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        print(f"\n[Report] Saved to {REPORT_PATH}")
-
-    print("\n" + "=" * 70)
-    print("EVALUATION SUMMARY")
-    print("=" * 70)
-
-    for result in results:
-        print(
-            f"Issue: #{result['issue_number']} — "
-            f"{result.get('title', 'Title unavailable')}"
-        )
-        print(f"Workflow executed: {result['workflow_executed']}")
-        print(f"Final status: {result.get('final_status', 'not available')}")
-        print(f"Patches generated: {result.get('patches_generated', 0)}")
-        print(f"Patches applied: {result.get('patches_applied', 0)}")
-
-        tests = result.get("repository_tests", {})
-        print(f"Repository tests: {tests.get('status', 'NOT RUN')}")
-
-        if tests.get("ran"):
-            print(f"Test command: {tests.get('command', '')}")
-            print(f"Test exit code: {tests.get('exit_code')}")
-
-        if result.get("error"):
-            print(f"Error: {result['error']}")
-
-        print("-" * 50)
-
-    print(f"\nFull report: {REPORT_PATH}")
-    print("Issue resolution is not proven by syntax validation alone.")
+    print_summary(results)
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        print("\nEvaluation interrupted. Completed results were saved.")
         sys.exit(130)
