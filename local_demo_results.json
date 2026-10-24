@@ -11,11 +11,11 @@
     "success": true,
     "command": "python -m pytest tests -q --tb=short",
     "exit_code": 0,
-    "stdout": "...                                                                      [100%]\n3 passed in 0.05s\n",
-    "stderr": "[2026-10-10 21:53:58,850] WARNING in core: flasgger is not installed; serving the static landing page at / and skipping the Swagger UI and /spec.json.\n"
+    "stdout": "...                                                                      [100%]\n3 passed in 0.04s\n",
+    "stderr": "[2026-10-24 19:51:12,213] WARNING in core: flasgger is not installed; serving the static landing page at / and skipping the Swagger UI and /spec.json.\n"
   },
   "local_git_automation": "disabled",
   "remote_git_automation": "disabled",
-  "demo_repository": "C:\\Users\\Divya\\Downloads\\agentic-github-issue-resolver\\workspace\\localdemo_day6_calculator_v5",
-  "duration_seconds": 81.99
+  "demo_repository": "C:\\Users\\Divya\\Downloads\\agentic-github-issue-resolver\\workspace\\localdemo_localdemo_day7_final",
+  "duration_seconds": 75.9
 }
