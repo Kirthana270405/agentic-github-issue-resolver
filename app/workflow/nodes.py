@@ -1,4 +1,4 @@
-
+﻿
 import ast
 import os
 import re
@@ -69,7 +69,7 @@ def _safe_repo_file(repo_root: Path, file_path: str) -> Path | None:
 
 
 # ============================================================
-# NODE 1 — ANALYZE ISSUE
+# NODE 1 â€” ANALYZE ISSUE
 # ============================================================
 
 def analyze_issue_node(state: WorkflowState) -> dict:
@@ -116,7 +116,7 @@ def analyze_issue_node(state: WorkflowState) -> dict:
 
 
 # ============================================================
-# NODE 2 — RETRIEVE RELEVANT CODE
+# NODE 2 â€” RETRIEVE RELEVANT CODE
 # ============================================================
 
 class CodeChunker:
@@ -336,7 +336,7 @@ def retrieve_code_node(state: WorkflowState) -> dict:
 
 
 # ============================================================
-# NODE 3 — CREATE IMPLEMENTATION PLAN
+# NODE 3 â€” CREATE IMPLEMENTATION PLAN
 # ============================================================
 
 
@@ -396,7 +396,7 @@ def planning_node(state: WorkflowState) -> dict:
 
 
 # ============================================================
-# NODE 4 — GENERATE CODE CHANGES
+# NODE 4 â€” GENERATE CODE CHANGES
 # ============================================================
 
 def code_generation_node(state: WorkflowState) -> dict:
@@ -503,7 +503,7 @@ def code_generation_node(state: WorkflowState) -> dict:
         )
 
         try:
-            ast.parse(updated_content, filename=str(resolved_path))
+            ast.parse(updated_content.lstrip("\ufeff"), filename=str(resolved_path))
         except SyntaxError as exc:
             print(f"[Node] Rejected syntactically invalid patch: {exc}")
             continue
@@ -521,7 +521,7 @@ def code_generation_node(state: WorkflowState) -> dict:
 
 
 # ============================================================
-# NODE 5 — VALIDATE PATCHES
+# NODE 5 â€” VALIDATE PATCHES
 # ============================================================
 
 def patch_validation_node(state: WorkflowState) -> dict:
@@ -565,14 +565,14 @@ def patch_validation_node(state: WorkflowState) -> dict:
 
         print(
             f"[Node] Patch {'VALID' if valid else 'INVALID'}: "
-            f"{file_path} — {message}"
+            f"{file_path} â€” {message}"
         )
 
     return {"patch_validation_results": validation_results}
 
 
 # ============================================================
-# NODE 6 — APPLY VALID PATCHES
+# NODE 6 â€” APPLY VALID PATCHES
 # ============================================================
 
 def patch_application_node(state: WorkflowState) -> dict:
@@ -651,14 +651,14 @@ def patch_application_node(state: WorkflowState) -> dict:
     for result in results:
         print(
             f"[Node] {'APPLIED' if result['applied'] else 'NOT APPLIED'}: "
-            f"{result['file_path']} — {result['message']}"
+            f"{result['file_path']} â€” {result['message']}"
         )
 
     return {"patch_application_results": results}
 
 
 # ============================================================
-# NODE 7 — FINAL VALIDATION
+# NODE 7 â€” FINAL VALIDATION
 # ============================================================
 
 def final_validation_node(state: WorkflowState) -> dict:
@@ -692,7 +692,7 @@ def final_validation_node(state: WorkflowState) -> dict:
             source_path.relative_to(repo_root)
 
             source = source_path.read_text(encoding="utf-8")
-            compile(source, str(source_path), "exec")
+            compile(source.lstrip("\ufeff"), str(source_path), "exec")
 
             test_results.append({
                 "file_path": str(source_path),
@@ -733,7 +733,7 @@ def final_validation_node(state: WorkflowState) -> dict:
 
 
 # ============================================================
-# NODE 8 — RUN REPOSITORY TESTS
+# NODE 8 â€” RUN REPOSITORY TESTS
 # ============================================================
 
 def test_execution_node(state: WorkflowState) -> dict:
@@ -857,7 +857,7 @@ def test_execution_node(state: WorkflowState) -> dict:
 
 
 # ============================================================
-# NODE 9 — DEBUG TEST FAILURES
+# NODE 9 â€” DEBUG TEST FAILURES
 # ============================================================
 
 def debugging_node(state: WorkflowState) -> dict:
@@ -894,7 +894,7 @@ def debugging_node(state: WorkflowState) -> dict:
 
 
 # ============================================================
-# NODE 10 — PREPARE RETRY
+# NODE 10 â€” PREPARE RETRY
 # ============================================================
 
 def prepare_retry_node(state: WorkflowState) -> dict:
